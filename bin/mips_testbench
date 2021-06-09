@@ -1,0 +1,100 @@
+#!/bin/bash
+
+if [ -x $1 ]; then #checks that the simulator exists, and also sets $1 to be the location of the simulator
+
+    rm -r test
+    mkdir -p test/temp
+
+    for i in src/tests/*.bin ; do #each i corresponds to the name of the instruction. The format of instruction name is InstructionID-InstructionTested-ExpectedReturn-Author-Comment.bin and you can use underscores as space for comments
+
+        TESTLOCATION=$i
+
+
+        ##### Get rid of the "tests/" in the beginning of the name of the test #####
+        
+        NAME=${TESTLOCATION##*/} #Deletes all characters before the "/"
+
+
+        ##### Split the name of the file into components #####
+
+        IFS='-'
+        read -ra COMPONENT <<< "$NAME"  #Splits the NAME string into pieces separated by "-", and then puts them in an array
+
+        instr_ID=${COMPONENT[0]}
+        instr=${COMPONENT[1]}
+        expected_ret_code=${COMPONENT[2]}
+        author=${COMPONENT[3]}
+        comment=${COMPONENT[4]}
+
+        if [[ "$instr" == *"putc"* ]] || [[ "$instr" == *"getc"* ]]; then
+
+            string=${COMPONENT[5]}
+
+            #echo $string
+            string=${string%.*} #delete everything after the last "." (gets rid of .bin)
+
+            #echo $string
+        else
+
+            comment=${comment%.*} #delete everything after the last "." (gets rid of .bin)
+        fi
+        
+
+        #echo $comment
+        unset IFS #otherwise it messes up the file name and the simulator can't read the binary location anymore
+        
+
+        ##### execute the simulator with the current binary:
+
+        #if it is a PUTC test
+        if [[ $instr == "putc" ]]; then
+
+            $1 $TESTLOCATION > test/temp/"$instr_ID"
+
+            ret_code=$?
+
+            printed=$(<"test/temp/"$instr_ID"")
+
+            #if it passed
+            if [[ $ret_code == $expected_ret_code && $printed == $string ]]; then
+                STATUS="Pass" ;
+            else
+                STATUS="Fail" ;
+            fi
+
+        
+
+        else
+
+            #if it is a GETC test
+            if [[ $instr == "getc" ]]; then
+                
+                $1 $TESTLOCATION<<<$string
+                ret_code=$?
+
+            ##normal instruction
+            else
+
+                $1 $TESTLOCATION 
+                ret_code=$?
+            fi
+
+            if [[ "$ret_code" -eq "$expected_ret_code" ]]; then
+                STATUS="Pass" ;
+            else
+                STATUS="Fail" ;
+            fi
+        fi
+
+        ##### output the result of the test
+
+        printf "$instr_ID,$instr,$STATUS,$author,$comment\n"
+
+    done
+else 
+    echo "The file $1 does not exist or is not an executable"
+fi
+
+
+
+
